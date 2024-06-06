@@ -226,10 +226,10 @@ class SongOffsets implements ICloneable<SongOffsets>
 {
   /**
    * The offset, in milliseconds, to apply to the song's instrumental relative to the chart.
-   * For example, setting this to `-10.0` will start the instrumental 10ms earlier than the chart.
+   * For example, setting this to `10.0` will start the instrumental 10ms earlier than the chart.
    *
-   * Setting this to `-5000.0` means the chart start 5 seconds into the song.
-   * Setting this to `5000.0` means there will be 5 seconds of silence before the song starts.
+   * Setting this to `5000.0` means the chart start 5 seconds into the song.
+   * Setting this to `-5000.0` means there will be 5 seconds of silence before the song starts.
    */
   @:optional
   @:default(0)

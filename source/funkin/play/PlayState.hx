@@ -1391,14 +1391,8 @@ class PlayState extends MusicBeatSubState
 
     if (isGamePaused) return false;
 
-    if (!startingSong
-      && FlxG.sound.music != null
-      && (Math.abs(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 200
-        || Math.abs(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 200))
+    if (!startingSong && Math.abs(FlxG.sound.music?.time - vocals.time) > Constants.DESYNC_OFFSET)
     {
-      trace("VOCALS NEED RESYNC");
-      if (vocals != null) trace(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset));
-      trace(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset));
       resyncVocals();
     }
 
@@ -2020,10 +2014,10 @@ class PlayState extends MusicBeatSubState
 
     vocals.pause();
 
-    FlxG.sound.music.play(FlxG.sound.music.time);
+    FlxG.sound.music.play();
 
     vocals.time = FlxG.sound.music.time;
-    vocals.play(false, FlxG.sound.music.time);
+    vocals.play(false);
   }
 
   /**

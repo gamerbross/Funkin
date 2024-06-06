@@ -89,14 +89,13 @@ class LatencyState extends MusicBeatSubState
     swagSong.looped = true;
     swagSong.play();
     FlxG.sound.list.add(swagSong);
+    localConductor.linkedSound = swagSong;
 
     PreciseInputManager.instance.onInputPressed.add(preciseInputPressed);
 
     PreciseInputManager.instance.onInputReleased.add(preciseInputReleased);
 
     localConductor.forceBPM(60);
-
-    Conductor.instance.forceBPM(60);
 
     diffGrp = new FlxTypedGroup<FlxText>();
     add(diffGrp);
@@ -238,14 +237,9 @@ class LatencyState extends MusicBeatSubState
 
   override function update(elapsed:Float)
   {
-    /* trace("1: " + swagSong.frfrTime);
-      @:privateAccess
-      trace(FlxG.sound.music._channel.position);
-     */
+    super.update(elapsed);
 
-    localConductor.update(swagSong.time, false);
-
-    // localConductor.songPosition += (Timer.stamp() * 1000) - FlxG.sound.music.prevTimestamp;
+    localConductor.update(swagSong.time);
 
     songPosVis.x = songPosToX(localConductor.songPosition);
     songVisFollowAudio.x = songPosToX(localConductor.songPosition - localConductor.audioVisualOffset);
@@ -313,8 +307,6 @@ class LatencyState extends MusicBeatSubState
     {
       close();
     }
-
-    super.update(elapsed);
   }
 
   function generateBeatStuff(event:PreciseInputEvent)
@@ -327,8 +319,9 @@ class LatencyState extends MusicBeatSubState
     // trace("event timestamp: " + event.timestamp + "ns");
     // trace("songtime: " + localConductor.getTimeWithDiff(swagSong) + "ms");
 
-    var closestBeat:Int = Math.round(localConductor.getTimeWithDiff(swagSong) / (localConductor.stepLengthMs * 2)) % diffGrp.members.length;
-    var getDiff:Float = localConductor.getTimeWithDiff(swagSong) - (closestBeat * (localConductor.stepLengthMs * 2));
+    localConductor.resync();
+    var closestBeat:Int = Math.round(localConductor.songPosition / (localConductor.stepLengthMs * 2)) % diffGrp.members.length;
+    var getDiff:Float = localConductor.songPosition - (closestBeat * (localConductor.stepLengthMs * 2));
     // getDiff -= localConductor.inputOffset;
     getDiff -= inputLatencyMs;
     getDiff -= localConductor.audioVisualOffset;
@@ -367,10 +360,5 @@ class HomemadeMusic extends FlxSound
       prevTime = time;
       prevTimestamp = Std.int(Timer.stamp() * 1000);
     }
-  }
-
-  public function getTimeWithDiff():Float
-  {
-    return time + (Std.int(Timer.stamp() * 1000) - prevTimestamp);
   }
 }

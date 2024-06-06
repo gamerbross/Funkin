@@ -87,10 +87,33 @@ class Conductor
   public var currentTimeChange(default, null):Null<SongTimeChange>;
 
   /**
+   * The sound/music used for syncing and updating song time.
+   * If null, default HaxeFlixel music is used.
+   */
+  public var linkedSound(get, default):Null<FlxSound>;
+
+  function get_linkedSound():Null<FlxSound>
+  {
+    return linkedSound ?? FlxG.sound.music;
+  }
+
+  /**
    * The current position in the song in milliseconds.
    * Update this every frame based on the audio position using `Conductor.instance.update()`.
    */
   public var songPosition(default, null):Float = 0;
+
+  /**
+   * The last applied offsets in the song in milliseconds.
+   * Update this every frame based on the audio position using `Conductor.instance.update()`.
+   */
+  public var appliedOffsets(default, null):Float = 0;
+
+  /**
+   * If the song position was just resynced with music time.
+   * Update this every step.
+   */
+  public var resyncedSongPosition(default, null):Bool = false;
 
   var prevTimestamp:Float = 0;
   var prevTime:Float = 0;
@@ -318,6 +341,8 @@ class Conductor
 
   static function dispatchStepHit():Void
   {
+    instance.checkDesync();
+
     Conductor.stepHit.dispatch();
   }
 
@@ -392,25 +417,37 @@ class Conductor
    * BPM, current step, etc. will be re-calculated based on the song position.
    *
    * @param	songPosition The current position in the song in milliseconds.
-   *        Leave blank to use the FlxG.sound.music position.
+   *        Leave blank to use the linkedSound position.
    * @param applyOffsets If it should apply the instrumentalOffset + formatOffset + audioVisualOffset
    */
-  public function update(?songPos:Float, applyOffsets:Bool = true, forceDispatch:Bool = false)
+  public function update(?songPos:Float, applyOffsets:Bool = true)
   {
     if (songPos == null)
     {
-      songPos = (FlxG.sound.music != null) ? FlxG.sound.music.time : 0.0;
+      if (linkedSound != null && linkedSound.playing)
+      {
+        songPos = this.songPosition - appliedOffsets + FlxG.elapsed * 1000;
+      }
+      else
+      {
+        songPos = 0;
+      }
     }
 
     // Take into account instrumental and file format song offsets.
-    songPos += applyOffsets ? (instrumentalOffset + formatOffset + audioVisualOffset) : 0;
+    if (applyOffsets)
+    {
+      appliedOffsets = instrumentalOffset + formatOffset + audioVisualOffset;
+    }
+    else
+      appliedOffsets = 0;
 
     var oldMeasure:Float = this.currentMeasure;
     var oldBeat:Float = this.currentBeat;
     var oldStep:Float = this.currentStep;
 
     // Set the song position we are at (for purposes of calculating note positions, etc).
-    this.songPosition = songPos;
+    this.songPosition = songPos + appliedOffsets;
 
     currentTimeChange = timeChanges[0];
     if (this.songPosition > 0.0)
@@ -423,14 +460,15 @@ class Conductor
       }
     }
 
-    if (currentTimeChange == null && bpmOverride == null && FlxG.sound.music != null)
+    if (currentTimeChange == null && bpmOverride == null && linkedSound != null)
     {
       trace('WARNING: Conductor is broken, timeChanges is empty.');
     }
     else if (currentTimeChange != null && this.songPosition > 0.0)
     {
       // roundDecimal prevents representing 8 as 7.9999999
-      this.currentStepTime = FlxMath.roundDecimal((currentTimeChange.beatTime * Constants.STEPS_PER_BEAT) + (this.songPosition - currentTimeChange.timeStamp) / stepLengthMs, 6);
+      this.currentStepTime = FlxMath.roundDecimal((currentTimeChange.beatTime * Constants.STEPS_PER_BEAT)
+        + (this.songPosition - currentTimeChange.timeStamp) / stepLengthMs, 6);
       this.currentBeatTime = currentStepTime / Constants.STEPS_PER_BEAT;
       this.currentMeasureTime = currentStepTime / stepsPerMeasure;
       this.currentStep = Math.floor(currentStepTime);
@@ -474,23 +512,26 @@ class Conductor
     }
   }
 
+  private function checkDesync():Void
+  {
+    resyncedSongPosition = linkedSound?.playing && Math.abs(linkedSound.time - (songPosition - appliedOffsets)) > Constants.DESYNC_OFFSET;
+
+    if (resyncedSongPosition)
+    {
+      resync();
+    }
+  }
+
   /**
    * Can be called in-between frames, usually for input related things
    * that can potentially get processed on exact milliseconds/timestmaps.
    * If you need song position, use `Conductor.instance.songPosition` instead
    * for use in update() related functions.
-   * @param soundToCheck Which FlxSound object to check, defaults to FlxG.sound.music if no input
-   * @return Float
+   * @return New song position
    */
-  public function getTimeWithDiff(?soundToCheck:FlxSound):Float
+  public function resync():Float
   {
-    if (soundToCheck == null) soundToCheck = FlxG.sound.music;
-    // trace(this.songPosition);
-
-    @:privateAccess
-    this.songPosition = soundToCheck._channel.position;
-    // return this.songPosition + (Std.int(Timer.stamp() * 1000) - prevTimestamp);
-    // trace("\t--> " + this.songPosition);
+    this.update(linkedSound?._channel?.position ?? 0);
     return this.songPosition;
   }
 
